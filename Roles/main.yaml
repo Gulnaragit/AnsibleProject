@@ -1,0 +1,6 @@
+- hosts: [ec2_instance] #"{{ lookup('env', 'Instance_Ip') }}"
+  become: yes
+  roles:
+  - prometheus
+  - node_exporter
+  - grafana

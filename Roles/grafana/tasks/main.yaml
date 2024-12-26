@@ -1,0 +1,46 @@
+- name: Add Grafana GPG key to keyring
+  shell: "{{ grafana_gpg_key }}"
+  ignore_errors: true
+  changed_when: false
+
+- name: Add Grafana repository to sources.list
+  shell: "{{ grafana_repo }}"
+
+- name: Update APT cache
+  apt:
+    update_cache: yes
+
+- name: Install Grafana
+  apt:
+    name: grafana
+    state: present
+
+- name: Enable and Start the Grafana service
+  systemd:
+    name: grafana-server
+    enabled: yes
+    state: started
+
+- name: "UFW - Allow 3000 port"
+  ufw:
+    rule: allow
+    port: 3000
+    proto: tcp
+
+- name: Replace the content of /etc/grafana/provisioning/datasources/datasources.yaml
+  template:
+    src: grafana_datasource_config.j2
+    dest: /etc//grafana/provisioning/datasources/datasources.yaml
+    owner: root
+    group: root
+    mode: 0644  
+
+- name: Restart systemd grafana-server to apply changes
+  systemd:
+    name: grafana-server
+    state: restarted
+
+- name: Restart prometheus systemd to apply changes
+  systemd:
+    name: prometheus
+    state: restarted

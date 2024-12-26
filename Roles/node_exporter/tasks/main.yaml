@@ -1,0 +1,89 @@
+- name: Add system user 'node_exporter'
+  user:
+    name: "{{ n_user }}"
+    shell: /bin/false
+    create_home: false
+    state: present
+
+- name: Download "node_exporter" release archive to /tmp
+  get_url:
+    url: "{{ node_url }}"
+    dest: "/tmp/node_exporter-1.8.2.linux-amd64.tar.gz"
+    mode: 0644
+
+- name: Calculate SHA-256 checksum
+  command: sha256sum /tmp/node_exporter-1.8.2.linux-amd64.tar.gz
+  register: sha256_output
+
+- name: Display SHA-256 checksum
+  debug:
+    var: sha256_output.stdout_lines[0]
+
+- name: Extract "node_exporter", release archive
+  ansible.builtin.unarchive:
+    src: "/tmp/node_exporter-1.8.2.linux-amd64.tar.gz"
+    dest: "/tmp"
+    remote_src: yes
+
+- name: Clean up the archive
+  file:
+    path: "/tmp/node_exporter-1.8.2.linux-amd64.tar.gz"
+    state: absent
+
+- name: Copy "node_exporter" binary to /usr/local/bin
+  copy:
+    src: /tmp/node_exporter-1.8.2.linux-amd64/node_exporter
+    dest: /usr/local/bin/node_exporter
+    owner: "{{ n_user }}"
+    group: "{{ n_user }}"
+    mode: 0755
+    remote_src: true
+
+- name: Delete /tmp/node_exporter-1.8.2.linux-amd64 directory
+  file:
+    path: /tmp/node_exporter-1.8.2.linux-amd64
+    state: absent
+
+- name: Create a Node Exporter Config file in local host from Jinja2 Template
+  template:
+    src: node_exporter_config.j2 
+    dest: /tmp/node_exporter_config.yml 
+  delegate_to: localhost
+
+- name: Append Rendered Configuration to Prometheus Configuration file
+  blockinfile:
+    path: /etc/prometheus/prometheus.yml
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - DO NOT EDIT"
+    insertafter: "^scrape_configs:"
+    content: "{{ lookup('file', '/tmp/node_exporter_config.yml') }}"
+
+- name: Replace the content of /etc/systemd/system/node_exporter.service
+  template:
+    src: node_exporter_service.j2
+    dest: /etc/systemd/system/node_exporter.service
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Restart node-exporter systemd to apply changes
+  systemd:
+    name: "{{ n_user }}"
+    state: restarted
+
+- name: Enable and Start the node_exporter service
+  systemd:
+    name: "{{ n_user }}"
+    enabled: yes
+    state: started
+
+- name: "UFW - Allow 9100 port"
+  ufw:
+    rule: allow
+    port: 9100
+    proto: tcp
+
+- name: Restart prometheus systemd to apply changes
+  systemd:
+    name: prometheus
+    state: restarted
+

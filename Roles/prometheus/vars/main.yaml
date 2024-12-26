@@ -1,0 +1,2 @@
+p_user: "prometheus"
+prometheus_url: "https://github.com/prometheus/prometheus/releases/download/v3.1.0-rc.0/prometheus-3.1.0-rc.0.linux-amd64.tar.gz"
